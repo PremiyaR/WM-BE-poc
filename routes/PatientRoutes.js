@@ -12,28 +12,25 @@ const privateKey = fs.readFileSync("privateKey.pem", "utf8");
 // POST CALL
 router.post("/", async (req, res) => {
   try {
-    const { encryptedData, encryptedAESKey } = req.body;
+    const { encryptedData, encryptedKey } = req.body;
 
-    const aesKeyBuffer = crypto.privateDecrypt(
-        {
-          key: privateKey,
-          padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-          oaepHash: "sha256", // Ensure the same hash as the frontend
-        },
-        Buffer.from(encryptedAESKey, "base64")
-      );
-      
-      // Convert the AES key buffer to UTF-8 string (if it's a string-based AES key)
-      const aesKey = aesKeyBuffer.toString("utf8");
+    console.log('encryptedData-----------', encryptedData)
+    console.log('encryptedAESKey------------',encryptedKey)
 
-    // Decrypt data with AES key
-    const decryptedData = CryptoJS.AES.decrypt(encryptedData, aesKey).toString(
-      CryptoJS.enc.Utf8
-    );
-    const patientData = JSON.parse(decryptedData);
+    const buffer = Buffer.from(encryptedKey.toString(),'base64');
+
+    const decryptedAESKey = crypto.privateDecrypt(
+      {
+        key: privateKey,
+        padding: crypto.constants.RSA_PKCS1_PADDING,
+      }, buffer
+    ).toString();
+
+    const bytes = CryptoJS.AES.decrypt(encryptedData, decryptedAESKey);
+    const decryptedData = bytes.toString(CryptoJS.enc.Utf8);
 
     // Save patient data to database
-    const patient = new Patient(patientData);
+    const patient = new Patient({ encryptedData, encryptedKey });
     await patient.save();
     res.status(201).json(patient);
   } catch (err) {
@@ -41,6 +38,7 @@ router.post("/", async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
 
 // GET CALL
 router.get("/", async (req, res) => {

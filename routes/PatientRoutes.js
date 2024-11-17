@@ -33,10 +33,23 @@ router.get("/", async (req, res) => {
     }
 
      // Send only encrypted data and keys
-     const response = patients.map((patient) => ({
-      encryptedData: patient.encryptedData,
-      encryptedKey: patient.encryptedKey,
-    }));
+     const response = patients.map((patient) => {
+      const buffer = Buffer.from(patient.encryptedKey.toString(), 'base64')
+
+      // Decrypt AES Key using private key
+      const decryptedAESKey = crypto.privateDecrypt(
+        {
+          key: privateKey,
+          padding: crypto.constants.RSA_PKCS1_PADDING,
+        },
+        buffer
+      ).toString();
+
+      return{
+        encryptedData: patient.encryptedData,
+        decryptedAESKey,
+      }
+    });
    
     res.status(200).json(response);
   } catch (err) {
@@ -49,18 +62,6 @@ router.get("/", async (req, res) => {
 router.get("/public-key", (req, res) => {
   const publicKey = fs.readFileSync("publicKey.pem", "utf-8");
   res.status(200).send(publicKey);
-});
-
-router.get("/private-key", (req, res) => {
-  try {
-    // Ensure the request is authenticated for security purposes
-
-    const privateKey = fs.readFileSync("privateKey.pem", "utf-8");
-    res.status(200).send( privateKey );
-  } catch (error) {
-    console.error("Error fetching private key:", error);
-    res.status(500).json({ error: "Server error" });
-  }
 });
 
 module.exports = router;

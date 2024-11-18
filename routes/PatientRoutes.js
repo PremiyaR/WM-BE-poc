@@ -1,39 +1,62 @@
-const Patient= require('../model/Patient.js');
-const express=require('express');
+const Patient = require("../model/Patient.js");
+const express = require("express");
 const router = express.Router();
-const CryptoJS = require('crypto-js');
+const fs = require("fs");
+const crypto = require("crypto");
 
-const secretKey = "secretKey123"; //needs to be stored in a environment variable.
+const privateKey = fs.readFileSync("privateKey.pem", "utf8");
 
-//POST CALL
-router.post('/', async(req,res)=>{
-    try{
-        console.log('Request Body:', req.body);
-        const { data } = req.body;
-        const patient = new Patient({ data });
-        await patient.save();
-        res.status(201).json(patient);
-    }catch(err){
-        console.log('Error in post call:', err)
-        res.status(400).json({error: err.message})
+// POST CALL
+router.post("/", async (req, res) => {
+  try {
+    const { encryptedData, encryptedKey } = req.body;
+   
+    // Save patient data to database
+    const patient = new Patient({ encryptedData, encryptedKey });
+    await patient.save();
+    res.status(201).json(patient);
+  } catch (err) {
+    console.error("Error in post call:", err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+
+// GET CALL
+router.get("/", async (req, res) => {
+  try {
+    const patients = await Patient.find();
+
+    if (!patients || patients.length === 0) {
+      return res.status(404).json({ error: "No patients found" });
     }
-})
 
-//GET CALL
-router.get('/', async(req, res)=>{
-    try{
-        const patients = await Patient.find();
+     // Send only encrypted data and keys
+     const response = patients.map((patient) => {
 
-        //Decryption of the encrypted data from the database.
-        const decryptedPatients = patients.map((patient) => {
-            const decryptedData = CryptoJS.AES.decrypt(patient.data, secretKey).toString(CryptoJS.enc.Utf8);
-            return JSON.parse(decryptedData);
-        });
+      // Decrypt AES Key using private key
+      const decryptedAESKey = crypto.privateDecrypt(
+            privateKey,
+        Buffer.from(patient.encryptedKey, 'base64') 
+    ).toString();
 
-        res.status(200).json({patients : decryptedPatients});
-    }catch(err){
-        res.status(500).json({error: err.message});
-    }
-})
+      return{
+        encryptedData: patient.encryptedData,
+        decryptedAESKey,
+      }
+    });
+   
+    res.status(200).json(response);
+  } catch (err) {
+    console.error("Error in get call:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint to retrieve public key
+router.get("/public-key", (req, res) => {
+  const publicKey = fs.readFileSync("publicKey.pem", "utf-8");
+  res.status(200).send(publicKey);
+});
 
 module.exports = router;

@@ -1,7 +1,6 @@
 const Patient = require("../model/Patient.js");
 const express = require("express");
 const router = express.Router();
-const CryptoJS = require("crypto-js");
 const fs = require("fs");
 const crypto = require("crypto");
 
@@ -34,16 +33,12 @@ router.get("/", async (req, res) => {
 
      // Send only encrypted data and keys
      const response = patients.map((patient) => {
-      const buffer = Buffer.from(patient.encryptedKey.toString(), 'base64')
 
       // Decrypt AES Key using private key
       const decryptedAESKey = crypto.privateDecrypt(
-        {
-          key: privateKey,
-          padding: crypto.constants.RSA_PKCS1_PADDING,
-        },
-        buffer
-      ).toString();
+            privateKey,
+        Buffer.from(patient.encryptedKey, 'base64') 
+    ).toString();
 
       return{
         encryptedData: patient.encryptedData,
